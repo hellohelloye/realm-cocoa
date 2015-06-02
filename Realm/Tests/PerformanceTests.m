@@ -108,6 +108,31 @@ static RLMRealm *s_smallRealm, *s_mediumRealm, *s_largeRealm;
     }];
 }
 
+- (void)testStandaloneObjectInitialization {
+    NSDictionary *source = @{
+                             @"name" : @"Realm",
+                             @"employees" : @[
+                                     @{
+                                         @"name" : @"Samuel",
+                                         @"age" : @20,
+                                         @"hired" : @YES
+                                         },
+                                     @{
+                                         @"name" : @"Anna",
+                                         @"age" : @14,
+                                         @"hired" : @NO
+                                         }
+                                     ]
+                             };
+
+    [self measureBlock:^{
+        for (int i = 0; i < 2500; ++i) {
+            CompanyObject *companyObject = [[CompanyObject alloc] initWithValue:source];
+            __unused CompanyObject *standaloneCopy = [[CompanyObject alloc] initWithValue:companyObject];
+        }
+    }];
+}
+
 - (RLMRealm *)getStringObjects:(int)factor {
     RLMRealm *realm = [RLMRealm inMemoryRealmWithIdentifier:@(factor).stringValue];
     [NSFileManager.defaultManager removeItemAtPath:RLMTestRealmPath() error:nil];
