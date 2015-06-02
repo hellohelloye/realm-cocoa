@@ -59,25 +59,27 @@ const NSUInteger RLMDescriptionMaxDepth = 5;
     return self;
 }
 
-static id RLMValidatedObjectForProperty(id obj, RLMProperty *prop, RLMSchema *schema) {
-    if (RLMIsObjectValidForProperty(obj, prop)) {
-        return obj;
+static id RLMValidatedObjectForStandaloneProperty(id obj, RLMProperty *prop, RLMSchema *schema) {
+    if (!RLMIsNilOrNull(obj)) {
+        // check for object or array of properties
+        if (prop.type == RLMPropertyTypeObject) {
+            // for object create and try to initialize with obj
+            RLMObjectSchema *objSchema = schema[prop.objectClassName];
+            return [[objSchema.objectClass alloc] initWithValue:obj schema:schema];
+        }
+        else if (prop.type == RLMPropertyTypeArray && [obj conformsToProtocol:@protocol(NSFastEnumeration)]) {
+            // for arrays, create objects for each element and return new array
+            RLMObjectSchema *objSchema = schema[prop.objectClassName];
+            RLMArray *objects = [[RLMArray alloc] initWithObjectClassName: objSchema.className standalone:YES];
+            for (id el in obj) {
+                [objects addObject:[[objSchema.objectClass alloc] initWithValue:el schema:schema]];
+            }
+            return objects;
+        }
     }
 
-    // check for object or array of properties
-    if (prop.type == RLMPropertyTypeObject) {
-        // for object create and try to initialize with obj
-        RLMObjectSchema *objSchema = schema[prop.objectClassName];
-        return [[objSchema.objectClass alloc] initWithValue:obj schema:schema];
-    }
-    else if (prop.type == RLMPropertyTypeArray && [obj conformsToProtocol:@protocol(NSFastEnumeration)]) {
-        // for arrays, create objects for each element and return new array
-        RLMObjectSchema *objSchema = schema[prop.objectClassName];
-        RLMArray *objects = [[RLMArray alloc] initWithObjectClassName: objSchema.className standalone:YES];
-        for (id el in obj) {
-            [objects addObject:[[objSchema.objectClass alloc] initWithValue:el schema:schema]];
-        }
-        return objects;
+    if (RLMIsObjectValidForProperty(obj, prop)) {
+        return obj;
     }
 
     // if not convertible to prop throw
@@ -92,7 +94,7 @@ static id RLMValidatedObjectForProperty(id obj, RLMProperty *prop, RLMSchema *sc
             @throw RLMException(@"Invalid array input. Number of array elements does not match number of properties.");
         }
         for (NSUInteger i = 0; i < array.count; i++) {
-            [self setValue:RLMValidatedObjectForProperty(array[i], properties[i], schema) forKeyPath:[properties[i] name]];
+            [self setValue:RLMValidatedObjectForStandaloneProperty(array[i], properties[i], schema) forKeyPath:[properties[i] name]];
         }
     }
     else {
@@ -109,7 +111,7 @@ static id RLMValidatedObjectForProperty(id obj, RLMProperty *prop, RLMSchema *sc
                 obj = defaultValues[prop.name];
             }
 
-            [self setValue:RLMValidatedObjectForProperty(obj, prop, schema) forKeyPath:prop.name];
+            [self setValue:RLMValidatedObjectForStandaloneProperty(obj, prop, schema) forKeyPath:prop.name];
         }
     }
 
